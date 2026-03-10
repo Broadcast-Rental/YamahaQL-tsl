@@ -25,6 +25,6 @@ services:
     restart: unless-stopped
     command: ["python", "yamaha_to_swp08_bridge.py", "--yamaha-ip", "172.20.40.13", "--swp08-port", "2000", "--poll-interval", "0.5"]
     ports:
-      - "2000:2000"  # SW-P-08 router port for Cerebrum
+      - "2001:2000"  # Host port 2001 -> container 2000 (SW-P-08)
     environment:
       - PYTHONUNBUFFERED=1
