@@ -356,6 +356,62 @@ class SWP08Server:
                 return self.handle_get_source_names(data, matrix, level)
             elif command == CMD_GET_DEST_NAMES:
                 return self.handle_get_dest_names(data, matrix, level)
+            elif command == 0x43:  # Cerebrum paginated name request variant
+                # Data format variants (mirrors SR2 implementation):
+                # - [matrixLevel, charLengthIndex, startHi, startLo]
+                # - [matrixLevel, charLengthIndex]
+                # - [typeFlag] or [] where typeFlag 0x03 = destinations, else sources
+                if len(data) >= 4:
+                    matrix_level = data[0]
+                    type_or_char = data[1]
+                    start_hi = data[2]
+                    start_lo = data[3]
+                    # typeFlag 0x03 = destination names, else source names
+                    char_len_idx = type_or_char if type_or_char < 4 else 0x03
+                    modified_data = bytes([matrix_level, char_len_idx, start_hi, start_lo])
+                    if type_or_char == 0x03:
+                        return self.handle_get_dest_names(modified_data, matrix, level)
+                    return self.handle_get_source_names(modified_data, matrix, level)
+                elif len(data) >= 2:
+                    matrix_level = data[0]
+                    char_len_idx = data[1] if data[1] < 4 else 0x03
+                    modified_data = bytes([matrix_level, char_len_idx])
+                    return self.handle_get_source_names(modified_data, matrix, level)
+                elif len(data) == 1:
+                    type_flag = data[0]
+                    if type_flag == 0x03:
+                        modified_data = bytes([0, 2])  # matrixLevel=0, charLengthIndex=2
+                        return self.handle_get_dest_names(modified_data, matrix, level)
+                    modified_data = bytes([0, 2])
+                    return self.handle_get_source_names(modified_data, matrix, level)
+                else:
+                    modified_data = bytes([0, 2])
+                    return self.handle_get_source_names(modified_data, matrix, level)
+            elif command == 0x65:  # Paginated SOURCE name request
+                if len(data) >= 4:
+                    matrix_level = data[0]
+                    type_or_char = data[1]
+                    char_len_idx = type_or_char if type_or_char < 4 else 0x03
+                    modified_data = bytes([matrix_level, char_len_idx, data[2], data[3]])
+                    if type_or_char == 0x03:
+                        return self.handle_get_dest_names(modified_data, matrix, level)
+                    return self.handle_get_source_names(modified_data, matrix, level)
+                elif len(data) >= 2:
+                    char_len_idx = data[1] if data[1] < 4 else 0x03
+                    modified_data = bytes([data[0], char_len_idx]) + (data[2:4] if len(data) >= 4 else b"\x00\x00")
+                    return self.handle_get_source_names(modified_data, matrix, level)
+                return None
+            elif command == 0x67:  # Paginated DESTINATION name request
+                if len(data) >= 4:
+                    matrix_level = data[0]
+                    char_len_idx = data[1] if data[1] < 4 else 0x03
+                    modified_data = bytes([matrix_level, char_len_idx, data[2], data[3]])
+                    return self.handle_get_dest_names(modified_data, matrix, level)
+                elif len(data) >= 2:
+                    char_len_idx = data[1] if data[1] < 4 else 0x03
+                    modified_data = bytes([data[0], char_len_idx]) + (data[2:4] if len(data) >= 4 else b"\x00\x00")
+                    return self.handle_get_dest_names(modified_data, matrix, level)
+                return None
             elif command == CMD_MATRIX_OR_STATUS_10:
                 return None
             elif command == CMD_STATUS_REQUEST_2:
