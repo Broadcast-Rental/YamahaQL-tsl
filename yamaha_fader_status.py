@@ -291,7 +291,7 @@ class YamahaMixerConnection:
         }
 
 
-﻿# Global instance
+# Global instance
 mixer = YamahaMixerConnection()
 
 
