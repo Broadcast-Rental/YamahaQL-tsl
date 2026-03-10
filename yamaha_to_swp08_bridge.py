@@ -104,7 +104,21 @@ def main() -> None:
     args = parser.parse_args()
 
     client = YamahaRcpClient(args.yamaha_ip)
+    # Connect once up-front so we can fetch labels before starting SW-P-08
+    ok, msg = client.connect()
+    print(msg, flush=True)
+
     router_state = build_router_state(args.router_name, args.channels)
+
+    # Fetch channel labels from Yamaha (best-effort). If unavailable, fall back to CH n.
+    labels = []
+    for ch in range(args.channels):
+        label = client.get_channel_label_name(ch) if ok else None
+        if not label:
+            label = f"CH {ch + 1}"
+        labels.append(label)
+    router_state.dest_labels = labels
+
     server = SWP08Server(host="0.0.0.0", port=args.swp08_port, router_state=router_state)
 
     poll_thread = threading.Thread(

@@ -95,6 +95,9 @@ class RouterState:
         self.num_outputs = num_outputs
         self.num_sources = num_sources
         self.matrix: Dict[int, int] = {}
+        # Optional list of destination labels (one per dest index). When set,
+        # SW-P-08 destination names will use these instead of generic "CH n".
+        self.dest_labels: Optional[List[str]] = None
         for dest in range(num_outputs):
             self.matrix[dest] = SOURCE_NC
 
@@ -546,9 +549,13 @@ class SWP08Server:
             all_name_strings: List[str] = []
         else:
             if self._cached_dest_names is None:
-                dests = []
+                dests: List[str] = []
+                labels = getattr(rs, "dest_labels", None)
                 for i in range(rs.num_outputs):
-                    port_name = f"CH {i + 1}"
+                    if labels and i < len(labels) and labels[i]:
+                        port_name = labels[i]
+                    else:
+                        port_name = f"CH {i + 1}"
                     dests.append(_yamaha_port_mnemonic(rs.node_name, port_name))
                 self._cached_dest_names = dests
             all_name_strings = self._cached_dest_names

@@ -150,6 +150,29 @@ class YamahaRcpClient:
         # From README: -32768 = CLOSED, anything else = OPEN
         return level != -32768
 
+    def get_channel_label_name(self, channel_index_zero_based: int) -> Optional[str]:
+        """
+        Get the user label/name for a given input channel.
+
+        Uses: get MIXER:Current/InCh/Label/Name {ch} 0
+        Returns the label string without surrounding quotes, or None on error.
+        """
+        cmd = f"get MIXER:Current/InCh/Label/Name {channel_index_zero_based} 0"
+        response = self._send_command(cmd)
+        if not response or not response.startswith("OK"):
+            return None
+
+        # Yamaha typically returns something like:
+        # OK get MIXER:Current/InCh/Label/Name 0 0 "My Label"
+        first_quote = response.find('"')
+        if first_quote != -1:
+            last_quote = response.rfind('"')
+            if last_quote > first_quote:
+                return response[first_quote + 1:last_quote]
+
+        parts = response.split()
+        return parts[-1] if parts else None
+
 
 # --- simple direct-use helpers -----------------------------------------------
 
