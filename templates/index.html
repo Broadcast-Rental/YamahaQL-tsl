@@ -317,30 +317,6 @@
             </div>
         </div>
 
-        <!-- TSL Bridge Card -->
-        <div class="card">
-            <h2>TSL Bridge Configuration</h2>
-            <div id="tsl-alert" class="alert"></div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="tsl-ip">TSL IP Address (UDP)</label>
-                    <input type="text" id="tsl-ip" placeholder="192.168.1.100">
-                </div>
-                <div class="form-group">
-                    <label for="tsl-port">TSL Port</label>
-                    <input type="number" id="tsl-port" placeholder="20000" value="20000">
-                </div>
-            </div>
-            <div class="button-group">
-                <button id="tsl-start-btn" class="btn-success" onclick="startTSLBridge()">Start TSL Bridge</button>
-                <button id="tsl-stop-btn" class="btn-danger" onclick="stopTSLBridge()" disabled>Stop TSL Bridge</button>
-            </div>
-            <div style="margin-top: 15px;">
-                <span id="tsl-status" class="status-indicator status-disconnected"></span>
-                <span id="tsl-status-text" class="status-text">Stopped</span>
-            </div>
-        </div>
-
         <!-- Status Summary Card -->
         <div class="card">
             <h2>Status Summary</h2>
@@ -451,55 +427,6 @@
             }
         }
 
-        // Start TSL bridge
-        async function startTSLBridge() {
-            const mixerIp = document.getElementById('mixer-ip').value.trim();
-            const tslIp = document.getElementById('tsl-ip').value.trim();
-            const tslPort = document.getElementById('tsl-port').value.trim();
-
-            if (!mixerIp) {
-                showAlert('tsl-alert', 'Please enter mixer IP address first', 'error');
-                return;
-            }
-            if (!tslIp) {
-                showAlert('tsl-alert', 'Please enter TSL IP address', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/tsl/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        mixer_ip: mixerIp,
-                        tsl_ip: tslIp,
-                        tsl_port: tslPort
-                    })
-                });
-
-                const data = await response.json();
-                showAlert('tsl-alert', data.message, data.success ? 'success' : 'error');
-                updateTSLStatus(data.status);
-            } catch (error) {
-                showAlert('tsl-alert', 'Error: ' + error.message, 'error');
-            }
-        }
-
-        // Stop TSL bridge
-        async function stopTSLBridge() {
-            try {
-                const response = await fetch('/api/tsl/stop', {
-                    method: 'POST'
-                });
-
-                const data = await response.json();
-                showAlert('tsl-alert', data.message, 'success');
-                updateTSLStatus(data.status);
-            } catch (error) {
-                showAlert('tsl-alert', 'Error: ' + error.message, 'error');
-            }
-        }
-
         // Update connection status UI
         function updateConnectionStatus(connected) {
             const statusIndicator = document.getElementById('connection-status');
@@ -523,27 +450,12 @@
             }
         }
 
-        // Update TSL bridge status UI
-        function updateTSLStatus(status) {
-            const statusIndicator = document.getElementById('tsl-status');
-            const statusText = document.getElementById('tsl-status-text');
-            const startBtn = document.getElementById('tsl-start-btn');
-            const stopBtn = document.getElementById('tsl-stop-btn');
-
-            if (status.running) {
-                statusIndicator.className = 'status-indicator status-connected';
-                statusText.textContent = `Running (${status.config.tsl_ip}:${status.config.tsl_port})`;
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-            } else {
-                statusIndicator.className = 'status-indicator status-disconnected';
-                statusText.textContent = 'Stopped';
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-            }
+        // Update channel display
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
         }
 
-        // Update channel display
         function updateChannelDisplay(status) {
             // Update summary
             if (status.summary) {
@@ -564,8 +476,11 @@
                 .map(k => parseInt(k))
                 .sort((a, b) => a - b);
 
+            const labels = status.labels || {};
+
             container.innerHTML = channels.map(ch => {
                 const statusValue = status.status_data[ch];
+                const userLabel = labels[ch] || '';
                 let statusClass = 'unknown';
                 let statusText = 'UNKNOWN';
 
@@ -577,9 +492,13 @@
                     statusText = 'CLOSED';
                 }
 
+                const labelLine = userLabel
+                    ? `CH${ch.toString().padStart(2, '0')} – ${escapeHtml(userLabel)}`
+                    : `CH${ch.toString().padStart(2, '0')}`;
+
                 return `
                     <div class="channel-item ${statusClass}">
-                        <div class="channel-label">CH${ch.toString().padStart(2, '0')}</div>
+                        <div class="channel-label">${labelLine}</div>
                         <div class="channel-status">${statusText}</div>
                     </div>
                 `;
@@ -633,11 +552,6 @@
                     updateChannelDisplay(mixerData);
                     startAutoRefresh();
                 }
-
-                // Load TSL bridge status
-                const tslResponse = await fetch('/api/tsl/status');
-                const tslData = await tslResponse.json();
-                updateTSLStatus(tslData);
             } catch (error) {
                 console.error('Error loading initial status:', error);
             }

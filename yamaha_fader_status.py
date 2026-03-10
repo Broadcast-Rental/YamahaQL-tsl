@@ -32,6 +32,8 @@ class YamahaMixerConnection:
         self.is_connected = False
         self.ip_address = ""
         self.status_data: Dict[int, Optional[bool]] = {}
+        # Optional channel labels fetched from the mixer (CH number -> label string)
+        self.channel_labels: Dict[int, str] = {}
         self.last_update_time = 0
         self.lock = threading.Lock()
         self.poll_thread: Optional[threading.Thread] = None
@@ -213,6 +215,27 @@ class YamahaMixerConnection:
                 except (ValueError, IndexError):
                     return None
         return None
+
+    def get_channel_label(self, channel_index: int) -> Optional[str]:
+        """
+        Get the user label/name for a given input channel.
+
+        Uses: get MIXER:Current/InCh/Label/Name {ch} 0
+        Returns the label string without surrounding quotes, or None on error.
+        """
+        command = f"get MIXER:Current/InCh/Label/Name {channel_index} 0"
+        response = self.send_command(command)
+        if not response or not response.startswith("OK"):
+            return None
+
+        first_quote = response.find('"')
+        if first_quote != -1:
+            last_quote = response.rfind('"')
+            if last_quote > first_quote:
+                return response[first_quote + 1:last_quote]
+
+        parts = response.split()
+        return parts[-1] if parts else None
     
     def fetch_all_fader_status(self) -> bool:
         """Fetch fader status for all input channels."""
@@ -220,13 +243,18 @@ class YamahaMixerConnection:
             return False
         
         with self.lock:
-            status_data = {}
+            status_data: Dict[int, Optional[bool]] = {}
             successful = 0
             
             for channel_idx in range(QL5_INPUT_CHANNELS):
                 status = self.get_fader_status(channel_idx)
                 channel_num = channel_idx + 1
                 status_data[channel_num] = status
+                # Fetch and cache channel label once per channel
+                if channel_num not in self.channel_labels:
+                    label = self.get_channel_label(channel_idx)
+                    if label:
+                        self.channel_labels[channel_num] = label
                 if status is not None:
                     successful += 1
                 time.sleep(0.01)  # Small delay to avoid overwhelming mixer
@@ -245,6 +273,7 @@ class YamahaMixerConnection:
                 'connected': self.is_connected,
                 'ip_address': self.ip_address,
                 'status_data': self.status_data.copy(),
+                'labels': self.channel_labels.copy(),
                 'last_update': self.last_update_time,
                 'summary': self._calculate_summary()
             }
@@ -262,74 +291,8 @@ class YamahaMixerConnection:
         }
 
 
-class TSLBridgeManager:
-    """Manages TSL bridge process"""
-    
-    def __init__(self):
-        self.process: Optional[subprocess.Popen] = None
-        self.running = False
-        self.config = {}
-    
-    def start(self, mixer_ip: str, tsl_ip: str, tsl_port: int) -> tuple[bool, str]:
-        """Start TSL bridge process"""
-        if self.running:
-            return False, "Bridge is already running"
-        
-        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "yamaha_to_tsl_bridge.py")
-        cmd = [sys.executable, script_path,
-               "--yamaha-ip", mixer_ip,
-               "--tsl-udp", f"{tsl_ip}:{tsl_port}",
-               "--format", "tsl5",
-               "--poll-interval", "0.25"]
-        
-        try:
-            self.process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            )
-            self.running = True
-            self.config = {
-                'mixer_ip': mixer_ip,
-                'tsl_ip': tsl_ip,
-                'tsl_port': tsl_port
-            }
-            return True, "Bridge started successfully"
-        except Exception as e:
-            return False, f"Failed to start bridge: {str(e)}"
-    
-    def stop(self) -> tuple[bool, str]:
-        """Stop TSL bridge process"""
-        if not self.running:
-            return False, "Bridge is not running"
-        
-        if self.process:
-            try:
-                self.process.terminate()
-                self.process.wait(timeout=2)
-            except:
-                try:
-                    self.process.kill()
-                except:
-                    pass
-            self.process = None
-        
-        self.running = False
-        self.config = {}
-        return True, "Bridge stopped successfully"
-    
-    def get_status(self) -> Dict:
-        """Get bridge status"""
-        return {
-            'running': self.running,
-            'config': self.config.copy()
-        }
-
-
-# Global instances
+﻿# Global instance
 mixer = YamahaMixerConnection()
-tsl_bridge = TSLBridgeManager()
 
 
 @app.route('/')
@@ -394,49 +357,6 @@ def api_status():
     """Get current status - data is automatically refreshed by background polling thread"""
     # Background polling thread handles updates, just return current status
     return jsonify(mixer.get_status())
-
-
-@app.route('/api/tsl/start', methods=['POST'])
-def api_tsl_start():
-    """Start TSL bridge"""
-    data = request.json
-    mixer_ip = data.get('mixer_ip', '').strip()
-    tsl_ip = data.get('tsl_ip', '').strip()
-    tsl_port = data.get('tsl_port', DEFAULT_TSL_PORT)
-    
-    if not mixer_ip:
-        return jsonify({'success': False, 'message': 'Mixer IP is required'}), 400
-    if not tsl_ip:
-        return jsonify({'success': False, 'message': 'TSL IP is required'}), 400
-    
-    try:
-        tsl_port = int(tsl_port)
-    except ValueError:
-        return jsonify({'success': False, 'message': 'Invalid port number'}), 400
-    
-    success, message = tsl_bridge.start(mixer_ip, tsl_ip, tsl_port)
-    return jsonify({
-        'success': success,
-        'message': message,
-        'status': tsl_bridge.get_status()
-    })
-
-
-@app.route('/api/tsl/stop', methods=['POST'])
-def api_tsl_stop():
-    """Stop TSL bridge"""
-    success, message = tsl_bridge.stop()
-    return jsonify({
-        'success': success,
-        'message': message,
-        'status': tsl_bridge.get_status()
-    })
-
-
-@app.route('/api/tsl/status', methods=['GET'])
-def api_tsl_status():
-    """Get TSL bridge status"""
-    return jsonify(tsl_bridge.get_status())
 
 
 if __name__ == '__main__':
