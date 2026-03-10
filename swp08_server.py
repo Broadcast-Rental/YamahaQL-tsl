@@ -541,9 +541,22 @@ class SWP08Server:
 
     def _build_source_name_list(self) -> List[str]:
         rs = self.get_primary_router_state()
-        if not rs or rs.num_sources <= 2:
-            return [_yamaha_port_mnemonic("NC", ""), _yamaha_port_mnemonic("OPEN", "")]
-        names = [_yamaha_port_mnemonic("NC", ""), _yamaha_port_mnemonic("OPEN", "")]
+        if not rs or rs.num_sources <= 1:
+            return [_yamaha_port_mnemonic("NC", "")]
+
+        names: List[str] = []
+        # Source 0 = NC
+        names.append(_yamaha_port_mnemonic("NC", ""))
+
+        # Sources 1..num_sources-1 map to Yamaha channels 1..N
+        labels = getattr(rs, "dest_labels", None)
+        for src_index in range(1, rs.num_sources):
+            if labels and (src_index - 1) < len(labels) and labels[src_index - 1]:
+                port_name = labels[src_index - 1]
+            else:
+                port_name = f"CH {src_index}"
+            names.append(_yamaha_port_mnemonic(rs.node_name, port_name))
+
         return names
 
     def handle_get_source_names(self, data: bytes, matrix: int, level: int) -> Optional[bytes]:

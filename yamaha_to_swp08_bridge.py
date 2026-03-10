@@ -5,16 +5,19 @@ Yamaha QL5 → SW-P-08 bridge for Cerebrum.
 This script:
 - Connects to a Yamaha mixer via the RCP protocol (TCP/49280)
 - Polls fader open/closed state for all input channels
-- Exposes a simple virtual router over SW-P-08 on a TCP port
+- Exposes a router-style SW-P-08 interface for Cerebrum
 
-Router model:
-- Destinations (outputs) 0..N-1  <=>  Yamaha input channels 1..N
-- Sources:
-    0 = NC (closed)
-    1 = OPEN (fader not at -32768)
+Router model (per-channel tally bus):
+- Sources (inputs):
+    0 = NC
+    1..N = channel tally sources (one per Yamaha input channel)
+- Destinations (outputs) 0..N-1:
+    Each destination represents a "tally output" for the corresponding channel.
+    When a channel is OPEN, we route source (channel index + 1) to that dest.
+    When CLOSED, we route NC (0).
 
-From Cerebrum's point of view, you get a 2×N router whose dest crosspoint
-indicates whether the corresponding Yamaha channel is OPEN (source 1) or NC (0).
+From Cerebrum's point of view, you get an N×N+1 router where each output
+encodes the tally state of a single channel in a familiar way.
 """
 
 import argparse
@@ -33,13 +36,13 @@ def build_router_state(router_name: str, channels: int) -> RouterState:
     """
     Create a RouterState where:
     - num_outputs = number of Yamaha input channels (destinations)
-    - num_sources = 2 (NC and OPEN)
+    - num_sources = 1 (NC) + N channel sources
     """
     return RouterState(
         node_id="yamaha",
         node_name=router_name,
         num_outputs=channels,
-        num_sources=2,  # 0 = NC, 1 = OPEN
+        num_sources=1 + channels,  # 0 = NC, 1..N = per-channel tally sources
     )
 
 
@@ -67,7 +70,8 @@ def poll_yamaha_and_update_router(
 
         for ch in range(channels):
             state = client.get_fader_open_state(ch)
-            source = 1 if state else 0  # True -> OPEN(1), False/None -> NC(0)
+            # Source index: 0 = NC, 1..N = channels 1..N
+            source = (ch + 1) if state else 0
             router_state.set_crosspoint(ch, source)
             time.sleep(0.01)  # small delay per channel to avoid hammering mixer
 
