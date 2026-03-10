@@ -1,0 +1,21 @@
+services:
+  yamaha-tsl-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yamaha-tsl-bridge
+    restart: unless-stopped
+    ports:
+      - "5000:5000"  # Web interface port
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    # Use default bridge network (removed custom network to allow host network access)
+    # On Windows Docker Desktop, the default bridge has NAT access to host network
+    # Optional: Add healthcheck
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 5000)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

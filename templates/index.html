@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yamaha QL5 Fader Status Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-connected {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .status-disconnected {
+            background: #ef4444;
+        }
+
+        .status-text {
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-item {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .summary-item .label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .channels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .channel-item {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .channel-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .channel-item.open {
+            border-color: #10b981;
+            background: #d1fae5;
+        }
+
+        .channel-item.closed {
+            border-color: #ef4444;
+            background: #fee2e2;
+        }
+
+        .channel-item.unknown {
+            border-color: #fbbf24;
+            background: #fef3c7;
+        }
+
+        .channel-label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #374151;
+        }
+
+        .channel-status {
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .channel-item.open .channel-status {
+            color: #059669;
+        }
+
+        .channel-item.closed .channel-status {
+            color: #dc2626;
+        }
+
+        .channel-item.unknown .channel-status {
+            color: #d97706;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #059669;
+            border: 1px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #ef4444;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .channels-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎚️ Yamaha QL5 Fader Status Monitor</h1>
+        </div>
+
+        <!-- Mixer Connection Card -->
+        <div class="card">
+            <h2>Mixer Connection</h2>
+            <div id="mixer-alert" class="alert"></div>
+            <div class="form-group">
+                <label for="mixer-ip">Mixer IP Address</label>
+                <input type="text" id="mixer-ip" placeholder="172.20.40.13" value="172.20.40.13">
+            </div>
+            <div class="button-group">
+                <button id="connect-btn" class="btn-primary" onclick="connectMixer()">Connect</button>
+                <button id="disconnect-btn" class="btn-danger" onclick="disconnectMixer()" disabled>Disconnect</button>
+                <button id="refresh-btn" class="btn-secondary" onclick="refreshStatus()" disabled>Refresh Status</button>
+            </div>
+            <div style="margin-top: 15px;">
+                <span id="connection-status" class="status-indicator status-disconnected"></span>
+                <span id="connection-text" class="status-text">Not Connected</span>
+            </div>
+        </div>
+
+        <!-- TSL Bridge Card -->
+        <div class="card">
+            <h2>TSL Bridge Configuration</h2>
+            <div id="tsl-alert" class="alert"></div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="tsl-ip">TSL IP Address (UDP)</label>
+                    <input type="text" id="tsl-ip" placeholder="192.168.1.100">
+                </div>
+                <div class="form-group">
+                    <label for="tsl-port">TSL Port</label>
+                    <input type="number" id="tsl-port" placeholder="20000" value="20000">
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="tsl-start-btn" class="btn-success" onclick="startTSLBridge()">Start TSL Bridge</button>
+                <button id="tsl-stop-btn" class="btn-danger" onclick="stopTSLBridge()" disabled>Stop TSL Bridge</button>
+            </div>
+            <div style="margin-top: 15px;">
+                <span id="tsl-status" class="status-indicator status-disconnected"></span>
+                <span id="tsl-status-text" class="status-text">Stopped</span>
+            </div>
+        </div>
+
+        <!-- Status Summary Card -->
+        <div class="card">
+            <h2>Status Summary</h2>
+            <div id="summary" class="summary">
+                <div class="summary-item">
+                    <div class="label">Open</div>
+                    <div class="value" id="summary-open">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Closed</div>
+                    <div class="value" id="summary-closed">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Unknown</div>
+                    <div class="value" id="summary-unknown">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Total</div>
+                    <div class="value" id="summary-total">40</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Channel Status Card -->
+        <div class="card">
+            <h2>Channel Status</h2>
+            <div id="channels-container">
+                <div class="loading">Connect to mixer to view channel status</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+
+        // Show alert message
+        function showAlert(elementId, message, type) {
+            const alert = document.getElementById(elementId);
+            alert.textContent = message;
+            alert.className = `alert alert-${type} show`;
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        // Connect to mixer
+        async function connectMixer() {
+            const ip = document.getElementById('mixer-ip').value.trim();
+            if (!ip) {
+                showAlert('mixer-alert', 'Please enter mixer IP address', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip_address: ip })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('mixer-alert', data.message, 'success');
+                    updateConnectionStatus(true);
+                    updateChannelDisplay(data.status);
+                    startAutoRefresh();
+                } else {
+                    showAlert('mixer-alert', data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('mixer-alert', 'Connection error: ' + error.message, 'error');
+            }
+        }
+
+        // Disconnect from mixer
+        async function disconnectMixer() {
+            try {
+                const response = await fetch('/api/disconnect', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                showAlert('mixer-alert', data.message, 'success');
+                updateConnectionStatus(false);
+                stopAutoRefresh();
+                clearChannelDisplay();
+            } catch (error) {
+                showAlert('mixer-alert', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        // Refresh status
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/refresh', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    updateChannelDisplay(data.status);
+                } else {
+                    showAlert('mixer-alert', data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('mixer-alert', 'Refresh error: ' + error.message, 'error');
+            }
+        }
+
+        // Start TSL bridge
+        async function startTSLBridge() {
+            const mixerIp = document.getElementById('mixer-ip').value.trim();
+            const tslIp = document.getElementById('tsl-ip').value.trim();
+            const tslPort = document.getElementById('tsl-port').value.trim();
+
+            if (!mixerIp) {
+                showAlert('tsl-alert', 'Please enter mixer IP address first', 'error');
+                return;
+            }
+            if (!tslIp) {
+                showAlert('tsl-alert', 'Please enter TSL IP address', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/tsl/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mixer_ip: mixerIp,
+                        tsl_ip: tslIp,
+                        tsl_port: tslPort
+                    })
+                });
+
+                const data = await response.json();
+                showAlert('tsl-alert', data.message, data.success ? 'success' : 'error');
+                updateTSLStatus(data.status);
+            } catch (error) {
+                showAlert('tsl-alert', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        // Stop TSL bridge
+        async function stopTSLBridge() {
+            try {
+                const response = await fetch('/api/tsl/stop', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                showAlert('tsl-alert', data.message, 'success');
+                updateTSLStatus(data.status);
+            } catch (error) {
+                showAlert('tsl-alert', 'Error: ' + error.message, 'error');
+            }
+        }
+
+        // Update connection status UI
+        function updateConnectionStatus(connected) {
+            const statusIndicator = document.getElementById('connection-status');
+            const statusText = document.getElementById('connection-text');
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            const refreshBtn = document.getElementById('refresh-btn');
+
+            if (connected) {
+                statusIndicator.className = 'status-indicator status-connected';
+                statusText.textContent = 'Connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                refreshBtn.disabled = false;
+            } else {
+                statusIndicator.className = 'status-indicator status-disconnected';
+                statusText.textContent = 'Not Connected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                refreshBtn.disabled = true;
+            }
+        }
+
+        // Update TSL bridge status UI
+        function updateTSLStatus(status) {
+            const statusIndicator = document.getElementById('tsl-status');
+            const statusText = document.getElementById('tsl-status-text');
+            const startBtn = document.getElementById('tsl-start-btn');
+            const stopBtn = document.getElementById('tsl-stop-btn');
+
+            if (status.running) {
+                statusIndicator.className = 'status-indicator status-connected';
+                statusText.textContent = `Running (${status.config.tsl_ip}:${status.config.tsl_port})`;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+            } else {
+                statusIndicator.className = 'status-indicator status-disconnected';
+                statusText.textContent = 'Stopped';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        // Update channel display
+        function updateChannelDisplay(status) {
+            // Update summary
+            if (status.summary) {
+                document.getElementById('summary-open').textContent = status.summary.open;
+                document.getElementById('summary-closed').textContent = status.summary.closed;
+                document.getElementById('summary-unknown').textContent = status.summary.unknown;
+                document.getElementById('summary-total').textContent = status.summary.total;
+            }
+
+            // Update channels grid
+            const container = document.getElementById('channels-container');
+            if (!status.status_data || Object.keys(status.status_data).length === 0) {
+                container.innerHTML = '<div class="loading">No channel data available</div>';
+                return;
+            }
+
+            const channels = Object.keys(status.status_data)
+                .map(k => parseInt(k))
+                .sort((a, b) => a - b);
+
+            container.innerHTML = channels.map(ch => {
+                const statusValue = status.status_data[ch];
+                let statusClass = 'unknown';
+                let statusText = 'UNKNOWN';
+
+                if (statusValue === true) {
+                    statusClass = 'open';
+                    statusText = 'OPEN';
+                } else if (statusValue === false) {
+                    statusClass = 'closed';
+                    statusText = 'CLOSED';
+                }
+
+                return `
+                    <div class="channel-item ${statusClass}">
+                        <div class="channel-label">CH${ch.toString().padStart(2, '0')}</div>
+                        <div class="channel-status">${statusText}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Clear channel display
+        function clearChannelDisplay() {
+            document.getElementById('channels-container').innerHTML = 
+                '<div class="loading">Connect to mixer to view channel status</div>';
+            document.getElementById('summary-open').textContent = '0';
+            document.getElementById('summary-closed').textContent = '0';
+            document.getElementById('summary-unknown').textContent = '0';
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            autoRefreshInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/status');
+                    const data = await response.json();
+                    if (data.connected) {
+                        updateChannelDisplay(data);
+                    } else {
+                        stopAutoRefresh();
+                        updateConnectionStatus(false);
+                    }
+                } catch (error) {
+                    console.error('Auto-refresh error:', error);
+                }
+            }, 250); // Refresh every 250ms
+        }
+
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // Load initial status
+        async function loadInitialStatus() {
+            try {
+                // Load mixer status
+                const mixerResponse = await fetch('/api/status');
+                const mixerData = await mixerResponse.json();
+                updateConnectionStatus(mixerData.connected);
+                if (mixerData.connected) {
+                    updateChannelDisplay(mixerData);
+                    startAutoRefresh();
+                }
+
+                // Load TSL bridge status
+                const tslResponse = await fetch('/api/tsl/status');
+                const tslData = await tslResponse.json();
+                updateTSLStatus(tslData);
+            } catch (error) {
+                console.error('Error loading initial status:', error);
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', loadInitialStatus);
+    </script>
+</body>
+</html>
