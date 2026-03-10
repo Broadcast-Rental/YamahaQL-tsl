@@ -580,23 +580,20 @@ class SWP08Server:
         if start_index >= len(all_name_strings):
             names_data = bytes([matrix_level, char_length_index, (start_index >> 8) & 0xFF, start_index & 0xFF, 0])
         else:
-            if has_start_index:
-                max_names = min(3, len(all_name_strings) - start_index)
-                name_bytes = b""
-                for i in range(max_names):
-                    padded = _mnemonic_for_length(all_name_strings[start_index + i], char_length)
-                    name_bytes += padded.encode("ascii")
-                start_hi = (start_index >> 8) & 0xFF
-                start_lo = start_index & 0xFF
-                names_data = bytes([
-                    matrix_level,
-                    char_length_index,
-                    start_hi,
-                    start_lo,
-                    max_names,
-                ]) + name_bytes
-            else:
-                return None
+            max_names = min(3, len(all_name_strings) - start_index) if has_start_index else min(3, len(all_name_strings))
+            name_bytes = b""
+            for i in range(max_names):
+                padded = _mnemonic_for_length(all_name_strings[start_index + i], char_length)
+                name_bytes += padded.encode("ascii")
+            start_hi = (start_index >> 8) & 0xFF if has_start_index else 0
+            start_lo = start_index & 0xFF if has_start_index else 0
+            names_data = bytes([
+                matrix_level,
+                char_length_index,
+                start_hi,
+                start_lo,
+                max_names,
+            ]) + name_bytes
         return SWP08Message.encode_message(CMD_SOURCE_NAMES_RESPONSE, names_data)
 
     def handle_get_dest_names(self, data: bytes, matrix: int, level: int) -> Optional[bytes]:
